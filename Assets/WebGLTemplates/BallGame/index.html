@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#141414">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #141414; }
+    body { color: #eee; font-family: system-ui, sans-serif; }
+    [hidden] { display: none !important; }
+    #unity-container { position: fixed; inset: 0; }
+    #unity-canvas { display: block; width: 100%; height: 100%; background: #141414; outline: none; touch-action: none; }
+    #unity-loading, #unity-error { position: absolute; inset: 0; display: grid; place-items: center; background: #141414; }
+    #unity-progress { appearance: none; width: min(240px, 60vw); height: 4px; border: 0; border-radius: 2px; background: #333; color: #ddd; }
+    #unity-progress::-webkit-progress-bar { background: #333; border-radius: 2px; }
+    #unity-progress::-webkit-progress-value { background: #ddd; border-radius: 2px; }
+    #unity-progress::-moz-progress-bar { background: #ddd; border-radius: 2px; }
+    #unity-error { padding: 24px; text-align: center; font-size: 15px; line-height: 1.5; }
+    #unity-fullscreen { position: absolute; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: grid; place-items: center; width: 36px; height: 36px; padding: 8px; border: 1px solid #555; border-radius: 4px; background: #141414cc; color: #ccc; cursor: pointer; touch-action: manipulation; }
+    #unity-fullscreen:hover { color: #fff; border-color: #999; }
+    #unity-fullscreen:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    #unity-fullscreen svg { width: 18px; height: 18px; }
+    noscript { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; background: #141414; text-align: center; }
+  </style>
+</head>
+<body>
+  <main id="unity-container" aria-busy="true">
+    <canvas id="unity-canvas" width="{{{ WIDTH }}}" height="{{{ HEIGHT }}}" tabindex="0" aria-label="Ball game"></canvas>
+    <div id="unity-loading">
+      <progress id="unity-progress" max="1" value="0" aria-label="Loading game"></progress>
+    </div>
+    <div id="unity-error" role="alert" hidden></div>
+    <button id="unity-fullscreen" type="button" aria-label="Enter fullscreen" title="Fullscreen" hidden>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M7 2H2v5m11-5h5v5M2 13v5h5m11-5v5h-5" />
+      </svg>
+    </button>
+  </main>
+  <noscript>Enable JavaScript to play ball game.</noscript>
+  <script>
+    var container = document.getElementById("unity-container");
+    var canvas = document.getElementById("unity-canvas");
+    var loading = document.getElementById("unity-loading");
+    var progressBar = document.getElementById("unity-progress");
+    var errorBanner = document.getElementById("unity-error");
+    var fullscreenButton = document.getElementById("unity-fullscreen");
+
+    function showLoadError(message) {
+      console.error(message);
+      loading.hidden = true;
+      fullscreenButton.hidden = true;
+      container.setAttribute("aria-busy", "false");
+      errorBanner.textContent = "The game could not load. Refresh the page to try again.";
+      errorBanner.hidden = false;
+    }
+
+    function showBanner(message, type) {
+      if (type === "error") showLoadError(message);
+      else console.warn(message);
+    }
+
+    // Keep paths relative so the same build works under a GitHub project URL.
+    var buildUrl = "Build";
+    var config = {
+      arguments: [],
+      dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+      frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+      workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+      codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+      symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+      productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+      productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+      matchWebGLToCanvasSize: true,
+      showBanner: showBanner
+    };
+
+    canvas.addEventListener("pointerdown", function () { canvas.focus(); });
+    var loader = document.createElement("script");
+    loader.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+    loader.onerror = function () { showLoadError("Unable to download the Unity loader."); };
+    loader.onload = function () {
+      createUnityInstance(canvas, config, function (progress) {
+        progressBar.value = Math.max(0, Math.min(1, progress));
+      }).then(function (unityInstance) {
+        loading.hidden = true;
+        container.setAttribute("aria-busy", "false");
+        if (!errorBanner.hidden) return;
+        canvas.focus();
+        fullscreenButton.hidden = !(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+        fullscreenButton.onclick = function () {
+          unityInstance.SetFullscreen(1);
+          canvas.focus();
+        };
+      }).catch(showLoadError);
+    };
+    document.body.appendChild(loader);
+  </script>
+</body>
+</html>
